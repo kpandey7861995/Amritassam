@@ -3,7 +3,7 @@ import { useStore } from '../services/store';
 import { ShoppingCart, Menu, X, Phone, User as UserIcon, LogOut, Package, Coffee } from 'lucide-react';
 
 export const Header = ({ onNavigate, onOpenCart }: { onNavigate: (page: string) => void, onOpenCart: () => void }) => {
-  const { user, cart, logout } = useStore();
+  const { user, cart, logout, brandAssets } = useStore();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
@@ -18,9 +18,17 @@ export const Header = ({ onNavigate, onOpenCart }: { onNavigate: (page: string) 
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         {/* Logo Area */}
         <div className="flex items-center cursor-pointer group" onClick={() => handleNav('HOME')}>
-          <div className="bg-white p-2 rounded-full mr-3 shadow-sm group-hover:scale-110 transition-transform">
-            <Coffee className="text-tea-dark h-6 w-6 md:h-8 md:w-8" />
-          </div>
+          {brandAssets.logo ? (
+            <img 
+              src={brandAssets.logo} 
+              alt="Logo" 
+              className="h-10 w-auto mr-3 rounded-md object-contain bg-white/10 p-1"
+            />
+          ) : (
+            <div className="bg-white p-2 rounded-full mr-3 shadow-sm group-hover:scale-110 transition-transform">
+              <Coffee className="text-tea-dark h-6 w-6 md:h-8 md:w-8" />
+            </div>
+          )}
           <div className="flex flex-col">
              <h1 className="text-white font-bold text-lg md:text-2xl leading-none tracking-tight">AMRIT ASSAM</h1>
              <span className="text-tea-gold text-[10px] md:text-xs font-medium tracking-widest uppercase">Gold Tea</span>
@@ -117,11 +125,7 @@ export const Footer = ({ onNavigate }: { onNavigate: (page: string) => void }) =
       <div>
         <h3 className="text-tea-gold font-bold mb-4">Contact Us</h3>
         <ul className="space-y-2 text-sm text-gray-300">
-          <li className="flex items-center gap-2">
-            <Phone size={16} />
-            <span>+91 93242 70409</span>
-          </li>
-          <li>Email: sales@amritassamtea.com</li>
+          <li>Email: support@amritassam.com</li>
         </ul>
       </div>
 

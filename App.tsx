@@ -570,9 +570,25 @@ const CheckoutPage = ({ onOrderPlaced }: { onOrderPlaced: () => void }) => {
 
 // 5. DISTRIBUTOR INFO PAGE WITH FORM
 const DistributorPage = () => {
+  const [form, setForm] = useState({ name: '', mobile: '', firmName: '', city: '', description: '' });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    alert("Thank you for your interest! Our sales team will contact you shortly.");
+    
+    // Construct Mailto Link
+    const subject = encodeURIComponent("Distributor Enquiry from " + form.name);
+    const body = encodeURIComponent(
+      `Name: ${form.name}\n` +
+      `Mobile: ${form.mobile}\n` +
+      `Firm Name: ${form.firmName}\n` +
+      `City/Area: ${form.city}\n` +
+      `Description: ${form.description}`
+    );
+    
+    // Try to open email client
+    window.location.href = `mailto:support@amritassam.com?subject=${subject}&body=${body}`;
+    
+    alert("Thank you! Your default email client should open now. Please hit send to forward your enquiry to support@amritassam.com.");
   };
 
   return (
@@ -611,14 +627,10 @@ const DistributorPage = () => {
 
           <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
              <h3 className="font-bold text-xl mb-2">Direct Contact</h3>
-             <p className="text-gray-600 mb-4">Prefer to talk directly?</p>
-             <div className="flex items-center gap-3 mb-2">
-               <span className="font-bold text-tea-dark">Phone:</span>
-               <span>+91 93242 70409</span>
-             </div>
+             <p className="text-gray-600 mb-4">Prefer to email directly?</p>
              <div className="flex items-center gap-3">
                <span className="font-bold text-tea-dark">Email:</span>
-               <span>sales@amritassamtea.com</span>
+               <span>support@amritassam.com</span>
              </div>
           </div>
         </div>
@@ -629,27 +641,42 @@ const DistributorPage = () => {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-600 mb-1">Your Name</label>
-                  <input required type="text" className="w-full border p-2 rounded" placeholder="Enter full name" />
+                  <input 
+                    required type="text" className="w-full border p-2 rounded" placeholder="Enter full name" 
+                    value={form.name} onChange={e => setForm({...form, name: e.target.value})}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-600 mb-1">Mobile Number</label>
-                  <input required type="tel" className="w-full border p-2 rounded" placeholder="10-digit mobile" />
+                  <input 
+                    required type="tel" className="w-full border p-2 rounded" placeholder="10-digit mobile" 
+                    value={form.mobile} onChange={e => setForm({...form, mobile: e.target.value})}
+                  />
                 </div>
              </div>
              <div>
                 <label className="block text-sm font-bold text-gray-600 mb-1">Firm/Shop Name</label>
-                <input required type="text" className="w-full border p-2 rounded" placeholder="Enter business name" />
+                <input 
+                    required type="text" className="w-full border p-2 rounded" placeholder="Enter business name" 
+                    value={form.firmName} onChange={e => setForm({...form, firmName: e.target.value})}
+                />
              </div>
              <div>
                 <label className="block text-sm font-bold text-gray-600 mb-1">City / Area</label>
-                <input required type="text" className="w-full border p-2 rounded" placeholder="Where do you want to distribute?" />
+                <input 
+                    required type="text" className="w-full border p-2 rounded" placeholder="Where do you want to distribute?" 
+                    value={form.city} onChange={e => setForm({...form, city: e.target.value})}
+                />
              </div>
              <div>
                 <label className="block text-sm font-bold text-gray-600 mb-1">Current Business (If any)</label>
-                <textarea className="w-full border p-2 rounded" rows={2} placeholder="Briefly describe your current business..."></textarea>
+                <textarea 
+                    className="w-full border p-2 rounded" rows={2} placeholder="Briefly describe your current business..."
+                    value={form.description} onChange={e => setForm({...form, description: e.target.value})}
+                ></textarea>
              </div>
              <button type="submit" className="w-full bg-tea-gold text-tea-dark font-bold py-3 rounded hover:bg-yellow-400 transition">
-               Submit Enquiry
+               Submit Enquiry via Email
              </button>
           </form>
         </div>
@@ -693,7 +720,7 @@ const PrivacyPage = () => (
 
        <section>
          <h2 className="text-xl font-bold text-gray-900 mb-2">5. Contact Us</h2>
-         <p>If you have any questions about this Privacy Policy, please contact us at sales@amritassamtea.com or call +91 93242 70409.</p>
+         <p>If you have any questions about this Privacy Policy, please contact us at support@amritassam.com.</p>
        </section>
     </div>
   </div>
@@ -704,8 +731,7 @@ const TermsPage = () => (
   <div className="container mx-auto px-4 py-8 max-w-4xl">
     <h1 className="text-3xl font-bold mb-6 text-tea-dark">Terms & Conditions</h1>
     <div className="bg-white p-8 rounded-lg shadow-sm space-y-6 text-gray-700">
-       <p className="text-sm text-gray-500">Effective Date: October 2023</p>
-
+       
        <section>
          <h2 className="text-xl font-bold text-gray-900 mb-2">1. Introduction</h2>
          <p>Welcome to Amrit Assam Gold Tea. By accessing this website and purchasing our products, you agree to be bound by these terms and conditions.</p>

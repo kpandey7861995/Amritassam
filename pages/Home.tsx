@@ -3,7 +3,7 @@ import { useStore } from '../services/store';
 import { ChevronRight, ShieldCheck, Truck, Users, Star, Quote } from 'lucide-react';
 
 export const Home = ({ onNavigate }: { onNavigate: (page: string) => void }) => {
-  const { reviews } = useStore();
+  const { reviews, brandAssets } = useStore();
   
   // Get top 3 positive reviews
   const topReviews = reviews.filter(r => r.rating >= 4).slice(0, 3);
@@ -12,7 +12,10 @@ export const Home = ({ onNavigate }: { onNavigate: (page: string) => void }) => 
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
       <section className="bg-tea-dark text-white relative overflow-hidden">
-        <div className="absolute inset-0 opacity-20 bg-[url('https://picsum.photos/seed/teafield/1600/900')] bg-cover bg-center"></div>
+        <div 
+          className="absolute inset-0 opacity-20 bg-cover bg-center transition-all duration-700"
+          style={{ backgroundImage: `url('${brandAssets.heroImage}')` }}
+        ></div>
         <div className="container mx-auto px-4 py-20 md:py-32 relative z-10 text-center md:text-left">
           <div className="md:w-2/3">
             <span className="inline-block bg-tea-gold text-tea-dark font-bold px-3 py-1 rounded-full text-sm mb-4">
@@ -76,9 +79,9 @@ export const Home = ({ onNavigate }: { onNavigate: (page: string) => void }) => 
         <div className="container mx-auto px-4 flex flex-col md:flex-row items-center gap-12">
           <div className="md:w-1/2">
             <img 
-              src="https://picsum.photos/seed/teamaking/600/400" 
+              src={brandAssets.featureImage} 
               alt="Tea making" 
-              className="rounded-2xl shadow-xl"
+              className="rounded-2xl shadow-xl w-full h-auto object-cover"
             />
           </div>
           <div className="md:w-1/2">

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, Product, CartItem, Order, Role, InvoiceSettings, PurchaseOrder, PaymentSettings, Review } from '../types';
+import { User, Product, CartItem, Order, Role, InvoiceSettings, PurchaseOrder, PaymentSettings, Review, BrandAssets } from '../types';
 import { PRODUCTS, MOCK_USERS, MOCK_ORDERS, MOCK_PURCHASE_ORDERS, MOCK_REVIEWS } from '../constants';
 
 interface StoreContextType {
@@ -12,6 +12,7 @@ interface StoreContextType {
   reviews: Review[];
   invoiceSettings: InvoiceSettings;
   paymentSettings: PaymentSettings;
+  brandAssets: BrandAssets;
   login: (mobile: string, password: string, role: Role) => boolean;
   logout: () => void;
   register: (name: string, mobile: string, password: string, role: Role, territory?: string) => void;
@@ -34,17 +35,21 @@ interface StoreContextType {
   updateStock: (productId: string, newStock: number) => void;
   updateInvoiceSettings: (settings: InvoiceSettings) => void;
   updatePaymentSettings: (settings: PaymentSettings) => void;
+  updateBrandAssets: (assets: BrandAssets) => void;
   addReview: (review: Review) => void;
+  clearOnlineOrders: () => void;
+  updateUserPassword: (userId: string, newPassword: string) => void; // Added
 }
 
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 const DEFAULT_INVOICE_SETTINGS: InvoiceSettings = {
   companyName: 'Amrit Assam Gold Tea',
+  email: 'support@amritassam.com',
   addressLine1: 'Office No. 45, Grain Market, APMC Vashi',
   addressLine2: 'Navi Mumbai - 400705',
   gstin: '27AAAAA0000A1Z5',
-  phone: '+91 93242 70409',
+  phone: '', 
   footerNote: 'Thank you for choosing Amrit Assam Gold Tea. Goods once sold will not be taken back.'
 };
 
@@ -52,9 +57,16 @@ const DEFAULT_PAYMENT_SETTINGS: PaymentSettings = {
   razorpayKeyId: 'rzp_test_1DP5mmOlF5G5ag'
 };
 
+const DEFAULT_BRAND_ASSETS: BrandAssets = {
+  logo: null, // Null means use default Icon
+  heroImage: 'https://picsum.photos/seed/teafield/1600/900',
+  featureImage: 'https://picsum.photos/seed/teamaking/600/400'
+};
+
 export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
+  // Use sessionStorage for user to clear on browser close
   const [user, setUser] = useState<User | null>(() => {
-    const s = localStorage.getItem('amrit_user');
+    const s = sessionStorage.getItem('amrit_user');
     return s ? JSON.parse(s) : null;
   });
   
@@ -93,8 +105,14 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
     return s ? JSON.parse(s) : DEFAULT_PAYMENT_SETTINGS;
   });
 
+  const [brandAssets, setBrandAssets] = useState<BrandAssets>(() => {
+    const s = localStorage.getItem('amrit_brand_assets');
+    return s ? JSON.parse(s) : DEFAULT_BRAND_ASSETS;
+  });
+
   const [cart, setCart] = useState<CartItem[]>([]);
 
+  // LocalStorage persistance for Database items
   useEffect(() => localStorage.setItem('amrit_products', JSON.stringify(products)), [products]);
   useEffect(() => localStorage.setItem('amrit_orders', JSON.stringify(orders)), [orders]);
   useEffect(() => localStorage.setItem('amrit_purchase_orders', JSON.stringify(purchaseOrders)), [purchaseOrders]);
@@ -102,9 +120,45 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   useEffect(() => localStorage.setItem('amrit_reviews', JSON.stringify(reviews)), [reviews]);
   useEffect(() => localStorage.setItem('amrit_invoice_settings', JSON.stringify(invoiceSettings)), [invoiceSettings]);
   useEffect(() => localStorage.setItem('amrit_payment_settings', JSON.stringify(paymentSettings)), [paymentSettings]);
+  useEffect(() => localStorage.setItem('amrit_brand_assets', JSON.stringify(brandAssets)), [brandAssets]);
+
+  // SessionStorage for User Session
   useEffect(() => {
-    if (user) localStorage.setItem('amrit_user', JSON.stringify(user));
-    else localStorage.removeItem('amrit_user');
+    if (user) sessionStorage.setItem('amrit_user', JSON.stringify(user));
+    else sessionStorage.removeItem('amrit_user');
+  }, [user]);
+
+  // Inactivity Timer (5 Minutes)
+  useEffect(() => {
+    if (!user) return;
+
+    let inactivityTimer: any;
+    const TIMEOUT_DURATION = 5 * 60 * 1000; // 5 Minutes
+
+    const resetTimer = () => {
+      clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        logout();
+        alert("Session expired due to inactivity.");
+      }, TIMEOUT_DURATION);
+    };
+
+    // Listeners for activity
+    window.addEventListener('mousemove', resetTimer);
+    window.addEventListener('keypress', resetTimer);
+    window.addEventListener('click', resetTimer);
+    window.addEventListener('scroll', resetTimer);
+
+    // Initial start
+    resetTimer();
+
+    return () => {
+      clearTimeout(inactivityTimer);
+      window.removeEventListener('mousemove', resetTimer);
+      window.removeEventListener('keypress', resetTimer);
+      window.removeEventListener('click', resetTimer);
+      window.removeEventListener('scroll', resetTimer);
+    };
   }, [user]);
 
   const login = (mobile: string, password: string, role: Role): boolean => {
@@ -127,6 +181,7 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   const logout = () => {
     setUser(null);
     setCart([]);
+    sessionStorage.removeItem('amrit_user');
   };
 
   const register = (name: string, mobile: string, password: string, role: Role, territory?: string) => {
@@ -312,18 +367,34 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
     setPaymentSettings(settings);
   };
 
+  const updateBrandAssets = (assets: BrandAssets) => {
+    setBrandAssets(assets);
+  }
+
   const addReview = (review: Review) => {
     setReviews([review, ...reviews]);
   };
 
+  const clearOnlineOrders = () => {
+    // Delete all orders where paymentMethod is NOT 'COD'
+    setOrders(prevOrders => prevOrders.filter(o => o.paymentMethod === 'COD'));
+  };
+
+  const updateUserPassword = (userId: string, newPassword: string) => {
+    setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, password: newPassword } : u));
+    if (user && user.id === userId) {
+        setUser({ ...user, password: newPassword });
+    }
+  };
+
   return (
     <StoreContext.Provider value={{
-      user, products, orders, purchaseOrders, cart, users, reviews, invoiceSettings, paymentSettings,
+      user, products, orders, purchaseOrders, cart, users, reviews, invoiceSettings, paymentSettings, brandAssets,
       login, logout, register, addUser, addToCart, removeFromCart, clearCart,
       placeOrder, deleteOrder, addOrder, addPurchaseOrder, deletePurchaseOrder, receivePurchaseOrder,
       updateOrderStatus, updatePaymentStatus, approveDistributor, 
-      updateProduct, deleteProduct, addProduct, updateStock, updateInvoiceSettings, updatePaymentSettings,
-      addReview
+      updateProduct, deleteProduct, addProduct, updateStock, updateInvoiceSettings, updatePaymentSettings, updateBrandAssets,
+      addReview, clearOnlineOrders, updateUserPassword
     }}>
       {children}
     </StoreContext.Provider>

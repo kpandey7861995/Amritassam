@@ -75,6 +75,7 @@ export interface AnalyticsData {
 
 export interface InvoiceSettings {
   companyName: string;
+  email: string; // Added email field
   addressLine1: string;
   addressLine2: string;
   gstin: string;
@@ -84,6 +85,12 @@ export interface InvoiceSettings {
 
 export interface PaymentSettings {
   razorpayKeyId: string;
+}
+
+export interface BrandAssets {
+  logo: string | null; // Base64 string or URL
+  heroImage: string; // Base64 string or URL
+  featureImage: string; // Base64 string or URL for "Why Choose Us" section
 }
 
 export interface Review {
