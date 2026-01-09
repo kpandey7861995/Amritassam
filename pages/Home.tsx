@@ -128,7 +128,7 @@ export const Home = ({ onNavigate }: { onNavigate: (page: string) => void }) => 
                              <Star key={i} size={16} className={i < review.rating ? "text-tea-gold fill-tea-gold" : "text-gray-300"} />
                           ))}
                        </div>
-                       <p className="text-gray-600 mb-6 italic">"{review.comment}"</p>
+                       <p className="text-gray-600 mb-6 italic">{review.comment}</p>
                        <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-tea-dark rounded-full flex items-center justify-center text-white font-bold text-sm">
                              {review.userName.charAt(0)}

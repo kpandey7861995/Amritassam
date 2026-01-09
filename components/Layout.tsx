@@ -29,9 +29,8 @@ export const Header = ({ onNavigate, onOpenCart }: { onNavigate: (page: string) 
               <Coffee className="text-tea-dark h-6 w-6 md:h-8 md:w-8" />
             </div>
           )}
-          <div className="flex flex-col">
+          <div className="flex flex-col justify-center h-full">
              <h1 className="text-white font-bold text-lg md:text-2xl leading-none tracking-tight">AMRIT ASSAM</h1>
-             <span className="text-tea-gold text-[10px] md:text-xs font-medium tracking-widest uppercase">Gold Tea</span>
           </div>
         </div>
 

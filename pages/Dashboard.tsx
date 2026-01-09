@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useStore } from '../services/store';
+import { ReviewModal } from '../components/ReviewModal';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell } from 'recharts';
-import { Package, DollarSign, Users, CheckCircle, XCircle, Printer, AlertTriangle, FileText, PlusCircle, Trash2, Settings, Save, TrendingUp, ClipboardList, CreditCard, Download, UploadCloud, Image as ImageIcon, RotateCcw, KeyRound } from 'lucide-react';
-import { Product, Order, User, PurchaseItem, PurchaseOrder, InvoiceSettings, PaymentSettings, BrandAssets, Role } from '../types';
+import { Package, DollarSign, Users, CheckCircle, XCircle, Printer, AlertTriangle, FileText, PlusCircle, Trash2, Settings, Save, TrendingUp, ClipboardList, CreditCard, Download, UploadCloud, Image as ImageIcon, RotateCcw, KeyRound, Star, MessageSquare, Edit } from 'lucide-react';
+import { Product, Order, User, PurchaseItem, PurchaseOrder, InvoiceSettings, PaymentSettings, BrandAssets, Role, Review } from '../types';
 
 // --- UTILS ---
 const exportToCSV = (data: any[], filename: string) => {
@@ -233,6 +234,101 @@ const ChangePasswordModal = ({ targetUser, onClose, onUpdate }: { targetUser: {i
         </div>
     )
 }
+
+const ReviewManagerForm = ({ products, review, onClose, onSubmit }: { products: Product[], review?: Review | null, onClose: () => void, onSubmit: (r: Review) => void }) => {
+    const [formData, setFormData] = useState<Partial<Review>>({
+        productId: review?.productId || products[0]?.id,
+        userName: review?.userName || '',
+        rating: review?.rating || 5,
+        comment: review?.comment || '',
+        date: review?.date || new Date().toISOString().split('T')[0]
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if(!formData.userName || !formData.comment) return;
+
+        onSubmit({
+            ...review,
+            id: review?.id || '',
+            productId: formData.productId!,
+            userId: review?.userId || '', // For fake reviews this will be ignored/empty
+            userName: formData.userName!,
+            rating: Number(formData.rating),
+            comment: formData.comment!,
+            date: formData.date!
+        });
+    };
+
+    return (
+        <div className="fixed inset-0 z-[120] bg-black/60 flex items-center justify-center p-4">
+            <div className="bg-white p-6 rounded-lg w-full max-w-md animate-fade-in">
+                <h3 className="font-bold text-lg mb-4 text-tea-dark">{review ? 'Edit Review' : 'Add Manual Review'}</h3>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 mb-1">Product</label>
+                        <select 
+                            className="w-full border p-2 rounded" 
+                            value={formData.productId} 
+                            onChange={e => setFormData({...formData, productId: e.target.value})}
+                            disabled={!!review} // Disable product change on edit
+                        >
+                            {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                         <label className="block text-xs font-bold text-gray-500 mb-1">Reviewer Name</label>
+                         <input 
+                            className="w-full border p-2 rounded" 
+                            value={formData.userName} 
+                            onChange={e => setFormData({...formData, userName: e.target.value})} 
+                            required
+                         />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-xs font-bold text-gray-500 mb-1">Rating</label>
+                            <select 
+                                className="w-full border p-2 rounded" 
+                                value={formData.rating} 
+                                onChange={e => setFormData({...formData, rating: Number(e.target.value)})}
+                            >
+                                <option value="5">5 Stars</option>
+                                <option value="4">4 Stars</option>
+                                <option value="3">3 Stars</option>
+                                <option value="2">2 Stars</option>
+                                <option value="1">1 Star</option>
+                            </select>
+                        </div>
+                        <div>
+                             <label className="block text-xs font-bold text-gray-500 mb-1">Date</label>
+                             <input 
+                                type="date"
+                                className="w-full border p-2 rounded" 
+                                value={formData.date} 
+                                onChange={e => setFormData({...formData, date: e.target.value})} 
+                             />
+                        </div>
+                    </div>
+                    <div>
+                         <label className="block text-xs font-bold text-gray-500 mb-1">Comment</label>
+                         <textarea 
+                            className="w-full border p-2 rounded" 
+                            rows={3}
+                            value={formData.comment} 
+                            onChange={e => setFormData({...formData, comment: e.target.value})} 
+                            required
+                         />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-2">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600">Cancel</button>
+                        <button type="submit" className="bg-tea-dark text-white px-4 py-2 rounded font-bold">Save Review</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
 
 const InventoryManager = ({ products, onUpdateStock }: { products: Product[], onUpdateStock: (id: string, qty: number) => void }) => {
   const [editId, setEditId] = useState<string | null>(null);
@@ -484,11 +580,11 @@ const PurchaseOrderForm = ({ products, onClose, onSubmit }: { products: Product[
 
 export const Dashboard = () => {
   const { 
-    user, orders, products, users, invoiceSettings, purchaseOrders, paymentSettings, brandAssets,
+    user, orders, products, users, invoiceSettings, purchaseOrders, paymentSettings, brandAssets, reviews,
     updateInvoiceSettings, addUser, addOrder, addPurchaseOrder, receivePurchaseOrder,
     updatePaymentStatus, approveDistributor, updateOrderStatus, deleteOrder, deletePurchaseOrder,
     addProduct, deleteProduct, updateProduct, updateStock, updatePaymentSettings, updateBrandAssets,
-    clearOnlineOrders, updateUserPassword
+    clearOnlineOrders, updateUserPassword, updateReview, deleteReview, addFakeReview
   } = useStore();
   
   const [activeTab, setActiveTab] = useState('OVERVIEW');
@@ -498,6 +594,9 @@ export const Dashboard = () => {
   const [showAddUser, setShowAddUser] = useState(false);
   const [showPOForm, setShowPOForm] = useState(false);
   const [passwordModalUser, setPasswordModalUser] = useState<{id: string, name: string} | null>(null);
+  const [reviewProduct, setReviewProduct] = useState<Product | null>(null);
+  const [editingReview, setEditingReview] = useState<Review | null>(null);
+  const [showAddReview, setShowAddReview] = useState(false);
 
   // Settings state
   const [settingsForm, setSettingsForm] = useState<InvoiceSettings>(invoiceSettings);
@@ -594,7 +693,7 @@ export const Dashboard = () => {
        { name: 'Cash on Delivery', value: totalCOD, color: '#eab308' }
     ];
 
-    const TABS = ['OVERVIEW', 'REPORTS', 'PAYMENTS', 'ORDERS', 'PURCHASE', 'INVENTORY', 'PRODUCTS', 'USERS', 'SETTINGS'];
+    const TABS = ['OVERVIEW', 'REPORTS', 'PAYMENTS', 'ORDERS', 'PURCHASE', 'INVENTORY', 'PRODUCTS', 'USERS', 'REVIEWS', 'SETTINGS'];
 
     return (
       <div className="container mx-auto px-4 py-8">
@@ -939,6 +1038,78 @@ export const Dashboard = () => {
              </div>
         )}
 
+        {activeTab === 'REVIEWS' && (
+            <div className="animate-fade-in">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-xl text-gray-700">Manage Reviews</h3>
+                    <button 
+                        onClick={() => { setEditingReview(null); setShowAddReview(true); }} 
+                        className="bg-tea-dark text-white px-4 py-2 rounded font-bold shadow flex items-center gap-2 hover:bg-black"
+                    >
+                        <PlusCircle size={20} /> Add Manual Review
+                    </button>
+                </div>
+                
+                <div className="bg-white shadow rounded-lg overflow-hidden">
+                    <table className="w-full text-left text-sm">
+                        <thead className="bg-gray-50 border-b">
+                            <tr>
+                                <th className="p-3 font-bold text-gray-600">Product</th>
+                                <th className="p-3 font-bold text-gray-600">Reviewer</th>
+                                <th className="p-3 font-bold text-gray-600">Rating</th>
+                                <th className="p-3 font-bold text-gray-600">Comment</th>
+                                <th className="p-3 font-bold text-gray-600">Date</th>
+                                <th className="p-3 font-bold text-gray-600 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {reviews.map(r => {
+                                const product = products.find(p => p.id === r.productId);
+                                return (
+                                    <tr key={r.id} className="hover:bg-gray-50">
+                                        <td className="p-3 font-medium">{product?.name || 'Unknown Product'}</td>
+                                        <td className="p-3">{r.userName}</td>
+                                        <td className="p-3">
+                                            <div className="flex text-tea-gold">
+                                                {[...Array(5)].map((_, i) => (
+                                                    <Star key={i} size={12} className={i < r.rating ? "fill-tea-gold" : "text-gray-300"} />
+                                                ))}
+                                            </div>
+                                        </td>
+                                        <td className="p-3 max-w-xs truncate" title={r.comment}>{r.comment}</td>
+                                        <td className="p-3 text-gray-500">{r.date}</td>
+                                        <td className="p-3 text-right">
+                                            <button 
+                                                onClick={() => { setEditingReview(r); setShowAddReview(true); }}
+                                                className="text-blue-600 hover:text-blue-800 p-1 mr-2"
+                                                title="Edit"
+                                            >
+                                                <Edit size={16} />
+                                            </button>
+                                            <button 
+                                                onClick={() => {
+                                                    if(window.confirm('Are you sure you want to delete this review?')) {
+                                                        deleteReview(r.id);
+                                                    }
+                                                }}
+                                                className="text-red-600 hover:text-red-800 p-1"
+                                                title="Delete"
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                    {reviews.length === 0 && (
+                        <div className="p-8 text-center text-gray-500">No reviews found. Add one manually!</div>
+                    )}
+                </div>
+            </div>
+        )}
+
         {activeTab === 'SETTINGS' && (
           <div className="bg-white p-6 rounded-lg shadow max-w-2xl animate-fade-in">
              <div className="flex justify-between items-center mb-6">
@@ -1138,6 +1309,23 @@ export const Dashboard = () => {
           />
         )}
 
+        {/* Review Form Modal - NEW */}
+        {showAddReview && (
+            <ReviewManagerForm
+                products={products}
+                review={editingReview}
+                onClose={() => setShowAddReview(false)}
+                onSubmit={(r) => {
+                    if (editingReview) {
+                        updateReview(r);
+                    } else {
+                        addFakeReview(r);
+                    }
+                    setShowAddReview(false);
+                }}
+            />
+        )}
+
         {/* Add User Modal */}
         {showAddUser && (
           <AddUserForm 
@@ -1246,7 +1434,19 @@ export const Dashboard = () => {
                            <div className="bg-gray-100 w-8 h-8 rounded flex items-center justify-center text-xs font-bold text-gray-500">{item.quantity}x</div>
                            <span className="text-gray-700">{item.name} <span className="text-xs text-gray-400">({item.weight})</span></span>
                         </div>
-                        <span className="font-medium">₹{((isDistributor ? item.distributorPrice : item.mrp) * item.quantity).toFixed(0)}</span>
+                        <div className="flex items-center gap-4">
+                           <span className="font-medium">₹{((isDistributor ? item.distributorPrice : item.mrp) * item.quantity).toFixed(0)}</span>
+                           {/* REVIEW BUTTON - ONLY IF DELIVERED */}
+                           {order.status === 'Delivered' && (
+                               <button 
+                                 onClick={() => setReviewProduct(item)}
+                                 className="text-tea-gold hover:text-yellow-600 p-1"
+                                 title="Rate & Review"
+                               >
+                                  <Star size={16} />
+                               </button>
+                           )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1312,6 +1512,11 @@ export const Dashboard = () => {
       {/* Invoice Modal */}
       {viewInvoice && (
         <InvoiceTemplate order={viewInvoice} onClose={() => setViewInvoice(null)} />
+      )}
+
+      {/* Review Modal - ADDED */}
+      {reviewProduct && (
+        <ReviewModal product={reviewProduct} onClose={() => setReviewProduct(null)} />
       )}
     </div>
   );

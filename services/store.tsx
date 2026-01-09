@@ -38,6 +38,9 @@ interface StoreContextType {
   updatePaymentSettings: (settings: PaymentSettings) => Promise<void>;
   updateBrandAssets: (assets: BrandAssets) => Promise<void>;
   addReview: (review: Review) => Promise<void>;
+  updateReview: (review: Review) => Promise<void>;
+  deleteReview: (reviewId: string) => Promise<void>;
+  addFakeReview: (review: Review) => Promise<void>;
   clearOnlineOrders: () => void;
   updateUserPassword: (userId: string, newPassword: string) => Promise<void>;
 }
@@ -194,13 +197,15 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   };
 
   const fetchReviews = async () => {
-      const { data } = await supabase.from('reviews').select(`*, profiles(name)`).order('created_at', { ascending: false });
+      // Explicitly selecting reviewer_name to ensure it's fetched
+      const { data } = await supabase.from('reviews').select(`*, reviewer_name, profiles(name)`).order('created_at', { ascending: false });
       if (data) {
           setReviews(data.map((r: any) => ({
               id: r.id,
               productId: r.product_id,
-              userId: r.user_id,
-              userName: r.profiles?.name || 'Anonymous',
+              userId: r.user_id || '',
+              // Priority: Manual Name -> Linked Profile Name -> Anonymous
+              userName: r.reviewer_name || r.profiles?.name || 'Anonymous',
               rating: r.rating,
               comment: r.comment,
               date: new Date(r.created_at).toISOString().split('T')[0]
@@ -622,8 +627,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
 
   const updateBrandAssets = async (assets: BrandAssets) => {
     setBrandAssets(assets); // Optimistic Update
-    // Note: Storing base64 images in 'text' column. 
-    // For production scaling, switch to Supabase Storage and store URLs.
     await supabase.from('site_settings').update({
         logo: assets.logo,
         hero_image: assets.heroImage,
@@ -639,6 +642,35 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
         comment: review.comment
     });
     fetchReviews();
+  };
+
+  const updateReview = async (updatedReview: Review) => {
+      // Allow updating rating, comment, date and manual name
+      await supabase.from('reviews').update({
+          rating: updatedReview.rating,
+          comment: updatedReview.comment,
+          reviewer_name: updatedReview.userName,
+          created_at: updatedReview.date
+      }).eq('id', updatedReview.id);
+      fetchReviews();
+  };
+
+  const deleteReview = async (reviewId: string) => {
+      await supabase.from('reviews').delete().eq('id', reviewId);
+      setReviews(prev => prev.filter(r => r.id !== reviewId));
+  };
+
+  const addFakeReview = async (review: Review) => {
+      // Fake review: user_id is null, use reviewer_name
+      await supabase.from('reviews').insert({
+          product_id: review.productId,
+          reviewer_name: review.userName,
+          rating: review.rating,
+          comment: review.comment,
+          created_at: review.date, // Backdated support
+          // user_id left null
+      });
+      fetchReviews();
   };
 
   const clearOnlineOrders = () => {
@@ -662,7 +694,7 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
       placeOrder, deleteOrder, addOrder, addPurchaseOrder, deletePurchaseOrder, receivePurchaseOrder,
       updateOrderStatus, updatePaymentStatus, approveDistributor, 
       updateProduct, deleteProduct, addProduct, updateStock, updateInvoiceSettings, updatePaymentSettings, updateBrandAssets,
-      addReview, clearOnlineOrders, updateUserPassword
+      addReview, updateReview, deleteReview, addFakeReview, clearOnlineOrders, updateUserPassword
     }}>
       {children}
     </StoreContext.Provider>
