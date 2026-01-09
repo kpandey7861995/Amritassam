@@ -34,9 +34,9 @@ interface StoreContextType {
   deleteProduct: (productId: string) => Promise<void>;
   addProduct: (product: Product) => Promise<void>;
   updateStock: (productId: string, newStock: number) => Promise<void>;
-  updateInvoiceSettings: (settings: InvoiceSettings) => void;
-  updatePaymentSettings: (settings: PaymentSettings) => void;
-  updateBrandAssets: (assets: BrandAssets) => void;
+  updateInvoiceSettings: (settings: InvoiceSettings) => Promise<void>;
+  updatePaymentSettings: (settings: PaymentSettings) => Promise<void>;
+  updateBrandAssets: (assets: BrandAssets) => Promise<void>;
   addReview: (review: Review) => Promise<void>;
   clearOnlineOrders: () => void;
   updateUserPassword: (userId: string, newPassword: string) => Promise<void>;
@@ -132,19 +132,10 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   const [users, setUsers] = useState<User[]>([]); // Admin view of all users
   const [reviews, setReviews] = useState<Review[]>([]);
   
-  // Settings still in LocalStorage for simplicity as they are App Config
-  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings>(() => {
-    const s = localStorage.getItem('amrit_invoice_settings');
-    return s ? JSON.parse(s) : DEFAULT_INVOICE_SETTINGS;
-  });
-  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(() => {
-    const s = localStorage.getItem('amrit_payment_settings');
-    return s ? JSON.parse(s) : DEFAULT_PAYMENT_SETTINGS;
-  });
-  const [brandAssets, setBrandAssets] = useState<BrandAssets>(() => {
-    const s = localStorage.getItem('amrit_brand_assets');
-    return s ? JSON.parse(s) : DEFAULT_BRAND_ASSETS;
-  });
+  // Settings State
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings>(DEFAULT_INVOICE_SETTINGS);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>(DEFAULT_PAYMENT_SETTINGS);
+  const [brandAssets, setBrandAssets] = useState<BrandAssets>(DEFAULT_BRAND_ASSETS);
 
   const [cart, setCart] = useState<CartItem[]>([]);
 
@@ -153,7 +144,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
     const { data, error } = await supabase.from('products').select('*');
     if (data) {
         if (data.length === 0) {
-            // Seed if empty (One time dev helper)
             await seedProducts();
         } else {
             setProducts(data.map(mapProductFromDB));
@@ -162,7 +152,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   };
 
   const seedProducts = async () => {
-      // Map constant products to DB format
       const dbProducts = PRODUCTS.map(p => ({
           name: p.name,
           description: p.description,
@@ -181,8 +170,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   };
 
   const fetchOrders = async () => {
-      // Admin sees all, User sees own. RLS handles security, here we just fetch.
-      // We need to join order_items and products to reconstruct the CartItem structure
       const { data: ordersData, error } = await supabase
         .from('orders')
         .select(`
@@ -202,7 +189,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   };
 
   const fetchUsers = async () => {
-      // Only for Admin context usually, but fetching all public profiles for now
       const { data } = await supabase.from('profiles').select('*');
       if (data) setUsers(data.map(mapUserFromDB));
   };
@@ -222,15 +208,61 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
       }
   };
 
+  // Fetch Site Settings from DB
+  const fetchSettings = async () => {
+      try {
+          // Attempt to fetch ID 1
+          const { data, error } = await supabase.from('site_settings').select('*').eq('id', 1).single();
+          
+          if (data) {
+             // Map DB to State
+             setInvoiceSettings({
+                 companyName: data.company_name || DEFAULT_INVOICE_SETTINGS.companyName,
+                 email: data.email || DEFAULT_INVOICE_SETTINGS.email,
+                 addressLine1: data.address_line_1 || DEFAULT_INVOICE_SETTINGS.addressLine1,
+                 addressLine2: data.address_line_2 || DEFAULT_INVOICE_SETTINGS.addressLine2,
+                 gstin: data.gstin || DEFAULT_INVOICE_SETTINGS.gstin,
+                 phone: data.phone || DEFAULT_INVOICE_SETTINGS.phone,
+                 footerNote: data.footer_note || DEFAULT_INVOICE_SETTINGS.footerNote
+             });
+             setPaymentSettings({
+                 razorpayKeyId: data.razorpay_key_id || DEFAULT_PAYMENT_SETTINGS.razorpayKeyId
+             });
+             setBrandAssets({
+                 logo: data.logo || null,
+                 heroImage: data.hero_image || DEFAULT_BRAND_ASSETS.heroImage,
+                 featureImage: data.feature_image || DEFAULT_BRAND_ASSETS.featureImage
+             });
+          } else {
+             // If no row exists, insert defaults
+             await supabase.from('site_settings').insert({
+                 id: 1,
+                 company_name: DEFAULT_INVOICE_SETTINGS.companyName,
+                 email: DEFAULT_INVOICE_SETTINGS.email,
+                 address_line_1: DEFAULT_INVOICE_SETTINGS.addressLine1,
+                 address_line_2: DEFAULT_INVOICE_SETTINGS.addressLine2,
+                 gstin: DEFAULT_INVOICE_SETTINGS.gstin,
+                 phone: DEFAULT_INVOICE_SETTINGS.phone,
+                 footer_note: DEFAULT_INVOICE_SETTINGS.footerNote,
+                 razorpay_key_id: DEFAULT_PAYMENT_SETTINGS.razorpayKeyId,
+                 hero_image: DEFAULT_BRAND_ASSETS.heroImage,
+                 feature_image: DEFAULT_BRAND_ASSETS.featureImage
+             });
+          }
+      } catch (err) {
+          console.error("Error fetching settings:", err);
+      }
+  };
+
   // Initial Load
   useEffect(() => {
     fetchProducts();
     fetchReviews();
+    fetchSettings(); // Load Settings from DB
     
     // Check Active Session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-          // Fetch profile
           supabase.from('profiles').select('*').eq('id', session.user.id).single()
           .then(({ data }) => {
              if(data) setUser(mapUserFromDB(data));
@@ -248,10 +280,9 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
                 if(data) {
                     setUser(mapUserFromDB(data));
                     if(data.role === 'ADMIN') {
-                        fetchOrders(); // Admin needs all orders
+                        fetchOrders();
                         fetchUsers();
                     } else {
-                        // Regular user orders (RLS limits this query to own rows)
                         fetchOrders();
                     }
                 }
@@ -265,17 +296,10 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Settings Persistence
-  useEffect(() => localStorage.setItem('amrit_invoice_settings', JSON.stringify(invoiceSettings)), [invoiceSettings]);
-  useEffect(() => localStorage.setItem('amrit_payment_settings', JSON.stringify(paymentSettings)), [paymentSettings]);
-  useEffect(() => localStorage.setItem('amrit_brand_assets', JSON.stringify(brandAssets)), [brandAssets]);
-
   // --- ACTIONS ---
 
   const login = async (mobile: string, password: string): Promise<boolean> => {
-    // We Map Mobile to Email for Supabase Auth
     const email = `${mobile}@amritassam.com`;
-    
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
@@ -289,7 +313,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
         return false;
     }
 
-    // Check Role & Approval
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
     
     if (profile) {
@@ -312,53 +335,36 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
 
   const register = async (name: string, mobile: string, password: string, role: Role, territory?: string) => {
     const email = `${mobile}@amritassam.com`;
-    
-    // 1. SignUp
     const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-            data: { name } // Metadata
-        }
+        options: { data: { name } }
     });
 
     if (authError) {
-        if (authError.message.includes("Email logins are disabled")) {
-             alert("Configuration Error: 'Email Provider' is disabled in Supabase. Please enable it in Dashboard.");
-        } else {
-             alert(authError.message);
-        }
+        alert(authError.message);
         return;
     }
 
-    // 2. Profile Creation
-    // We use UPSERT to handle both cases:
-    // a) Trigger doesn't exist: Upsert creates the row.
-    // b) Trigger exists and created row: Upsert updates it.
     if (authData.user) {
         const updates = {
             id: authData.user.id,
             name,
             mobile,
             role,
-            approved: role !== 'DISTRIBUTOR', // Auto approve customers
+            approved: role !== 'DISTRIBUTOR',
             territory: territory || null,
             updated_at: new Date().toISOString()
         };
         
-        const { error: profileError } = await supabase
-            .from('profiles')
-            .upsert(updates)
-            .select();
+        const { error: profileError } = await supabase.from('profiles').upsert(updates).select();
 
         if (profileError) {
-             console.error("Profile creation failed:", profileError);
              alert("Error creating profile: " + profileError.message);
         } else {
             if (role === 'DISTRIBUTOR') {
                 alert("Registration successful! Please wait for Admin approval.");
             } else {
-                // Check if session is established (implies auto-confirm or confirm disabled)
                 if(!authData.session) {
                     alert("Registration successful! NOTE: If you cannot login, please disable 'Confirm Email' in Supabase Dashboard.");
                 }
@@ -392,7 +398,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   const placeOrder = async (paymentMethod: 'UPI' | 'Card' | 'COD', address: string, paymentStatus: 'Pending' | 'Paid' = 'Pending', transactionId?: string) => {
     if (!user) return;
 
-    // Check Stock
     for (const item of cart) {
       const product = products.find(p => p.id === item.id);
       if (product && product.stock < item.quantity) {
@@ -410,7 +415,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
     const taxAmount = subTotal * taxRate;
     const totalAmount = subTotal + taxAmount;
 
-    // 1. Insert Order
     const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .insert({
@@ -433,7 +437,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
         return;
     }
 
-    // 2. Insert Items
     const orderItems = cart.map(item => ({
         order_id: orderData.id,
         product_id: item.id,
@@ -442,13 +445,8 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
         total_price: (user.role === 'DISTRIBUTOR' ? item.distributorPrice : item.mrp) * item.quantity
     }));
 
-    const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+    await supabase.from('order_items').insert(orderItems);
 
-    if (itemsError) {
-        console.error("Failed to save items", itemsError);
-    }
-
-    // 3. Update Stock
     for (const item of cart) {
          const currentProduct = products.find(p => p.id === item.id);
          if (currentProduct) {
@@ -457,7 +455,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
          }
     }
 
-    // Refresh Data
     fetchOrders();
     fetchProducts();
     clearCart();
@@ -469,7 +466,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
   };
 
   const addOrder = async (order: Order) => {
-      // 1. Create Order
       const { data: orderData } = await supabase.from('orders').insert({
           user_id: order.userId,
           total_amount: order.totalAmount,
@@ -483,12 +479,11 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
       }).select().single();
 
       if(orderData) {
-          // 2. Items
           const items = order.items.map(i => ({
               order_id: orderData.id,
               product_id: i.id,
               quantity: i.quantity,
-              price_per_unit: i.mrp, // Assuming MRP for manual for simplicity unless calc'd
+              price_per_unit: i.mrp, 
               total_price: i.mrp * i.quantity
           }));
           await supabase.from('order_items').insert(items);
@@ -528,7 +523,6 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
      if (poIndex === -1) return;
      const po = purchaseOrders[poIndex];
      
-     // Update Stock in DB
      for(const item of po.items) {
          const prod = products.find(p => p.id === item.productId);
          if(prod) {
@@ -604,17 +598,38 @@ export const StoreProvider = ({ children }: React.PropsWithChildren<{}>) => {
     setProducts(products.map(p => p.id === productId ? { ...p, stock: newStock } : p));
   };
 
-  const updateInvoiceSettings = (settings: InvoiceSettings) => {
-    setInvoiceSettings(settings);
+  // --- SETTINGS UPDATES (Now writing to Supabase) ---
+
+  const updateInvoiceSettings = async (settings: InvoiceSettings) => {
+    setInvoiceSettings(settings); // Optimistic Update
+    await supabase.from('site_settings').update({
+        company_name: settings.companyName,
+        email: settings.email,
+        address_line_1: settings.addressLine1,
+        address_line_2: settings.addressLine2,
+        gstin: settings.gstin,
+        phone: settings.phone,
+        footer_note: settings.footerNote
+    }).eq('id', 1);
   };
   
-  const updatePaymentSettings = (settings: PaymentSettings) => {
-    setPaymentSettings(settings);
+  const updatePaymentSettings = async (settings: PaymentSettings) => {
+    setPaymentSettings(settings); // Optimistic Update
+    await supabase.from('site_settings').update({
+        razorpay_key_id: settings.razorpayKeyId
+    }).eq('id', 1);
   };
 
-  const updateBrandAssets = (assets: BrandAssets) => {
-    setBrandAssets(assets);
-  }
+  const updateBrandAssets = async (assets: BrandAssets) => {
+    setBrandAssets(assets); // Optimistic Update
+    // Note: Storing base64 images in 'text' column. 
+    // For production scaling, switch to Supabase Storage and store URLs.
+    await supabase.from('site_settings').update({
+        logo: assets.logo,
+        hero_image: assets.heroImage,
+        feature_image: assets.featureImage
+    }).eq('id', 1);
+  };
 
   const addReview = async (review: Review) => {
     await supabase.from('reviews').insert({
