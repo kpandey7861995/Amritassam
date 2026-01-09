@@ -31,37 +31,33 @@ const AuthPage = ({ onLoginSuccess }: { onLoginSuccess: () => void }) => {
 
     if (isRegister) {
       // REGISTER FLOW
-      // Check if already exists
       const userExists = users.some(u => u.mobile === formData.mobile);
       if (userExists) {
         alert("User already exists. Please Login.");
         return;
       }
 
-      register(formData.name, formData.mobile, formData.password, formData.role as any, formData.territory);
+      // Special Logic: If mobile is 8898750419, force role to ADMIN
+      let roleToRegister = formData.role;
+      if (formData.mobile === '8898750419') {
+          roleToRegister = 'ADMIN';
+      }
+
+      register(formData.name, formData.mobile, formData.password, roleToRegister as any, formData.territory);
       
-      if (formData.role === 'DISTRIBUTOR') {
+      if (formData.role === 'DISTRIBUTOR' && roleToRegister !== 'ADMIN') {
         setIsRegister(false);
         resetForm();
-        // Register function in store already alerts about approval
       } else {
         onLoginSuccess();
       }
 
     } else {
       // LOGIN FLOW
-      const success = login(formData.mobile, formData.password, 'CUSTOMER') || login(formData.mobile, formData.password, 'DISTRIBUTOR') || login(formData.mobile, formData.password, 'ADMIN');
-      
-      if (success) {
-        onLoginSuccess();
-      } else {
-        const userExists = users.some(u => u.mobile === formData.mobile);
-        if (userExists) {
-           // Password mismatch is handled in store
-        } else {
-           alert("Account not found. Please Register first.");
-        }
-      }
+      // Updated to single call - Store handles role checking
+      login(formData.mobile, formData.password).then(success => {
+          if(success) onLoginSuccess();
+      });
     }
   };
 
